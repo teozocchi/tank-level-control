@@ -41,7 +41,7 @@ IF xRunning = TRUE AND xAutoMode = TRUE THEN
     IF rLevel <= rSP_Low THEN xFilling := TRUE; END_IF   // fill 
     IF rLevel >= rSP_High THEN xFilling := FALSE; END_IF   // drain
     xInletValve := xFilling;
-    xPump := NOT xFilling;          // avoid dead-band deadlokc
+    xPump := NOT xFilling;          // avoid dead-band deadlock
 
 ELSIF xRunning = TRUE AND xAutoMode = FALSE THEN
     xInletValve := xManInlet; xPump := xManPump;
@@ -52,7 +52,7 @@ END_IF
 
 // safety — live condition, gated on running, runs last so it wins
 xHighAlarm := rLevel >= rSP_AlarmHigh;
-xLowCutout := rLevel <= rSp_AlarmLow;
+xLowCutout := rLevel <= rSP_AlarmLow;
 IF xRunning AND xHighAlarm THEN xInletValve := FALSE; xPump := TRUE; END_IF
 IF xRunning AND xLowCutout THEN xInletValve := TRUE;  xPump := FALSE; END_IF
 ```
