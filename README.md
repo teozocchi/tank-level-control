@@ -5,6 +5,7 @@ A small but complete industrial-control project: a simulated water tank kept at 
 > Built as my first automation project, ahead of starting **Automation Engineering at Politecnico di Milano**.
 
 ![HMI — normal operation](docs/hmi.png)
+-
 ![HMI — high-level alarm](docs/hmi_alarm.png) <!-- level above AH: red banner + trend excursion -->
 
 ## What it does
