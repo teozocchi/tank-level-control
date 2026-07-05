@@ -1,4 +1,6 @@
 VAR
+PROGRAM PLC_PRG
+VAR
 	rLevel : REAL := 8.0; // tank lvl 0-100
 	rSP_Low : REAL := 30.0; // low setpoint
 	rSP_High : REAL := 80.0; // hi setpoint
@@ -26,6 +28,21 @@ VAR
 	rOutflow: REAL;
 	xAllOk : BOOL := TRUE;
 	xNotOk: BOOL := FALSE;
+	xPidMode   : BOOL := TRUE;   // FALSE = on/off, TRUE = PID
+	xPidModeOff   : BOOL := TRUE;
+	rSP_PID    : REAL := 50.0;    // level target for PID
+	rKp        : REAL := 4.5;
+	rKi        : REAL := 0.5;
+	rKd        : REAL := 0.0;     // start at 0 (PI first)
+	rDt        : REAL := 0.1;     // = MainTask cycle (100 ms)
+	rError     : REAL;
+	rErrPrev   : REAL;
+	rIntegral  : REAL;
+	rDeriv     : REAL;
+	rValveCmd  : REAL;            // 0..100 % inlet opening
+	rInflowMax : REAL := 3.0;     // inflow at 100% valve
+	rDraw      : REAL := 1.0;     // steady outflow the PID must fight
+END_VAR
 END_VAR
 
 // start/stop latch (edge-detected)
@@ -34,37 +51,56 @@ IF xStop AND NOT xStopPrev THEN xRunning := FALSE; END_IF
 xStartPrev := xStart;
 xStopPrev  := xStop;
 
-// control
-IF xRunning = TRUE AND xAutoMode = TRUE THEN
-    IF rLevel <= rSP_Low THEN xFilling := TRUE; END_IF   // fill 
-    IF rLevel >= rSP_High THEN xFilling := FALSE; END_IF   // drain
-    xInletValve := xFilling;
-    xPump := NOT xFilling;          // never sotps mid band
-
-ELSIF xRunning = TRUE AND xAutoMode = FALSE THEN
-    xInletValve := xManInlet; xPump := xManPump;
-
+IF xRunning AND xAutoMode THEN
+    IF xPidMode THEN
+        // --- PID (modulating inlet valve) ---
+        rError    := rSP_PID - rLevel;
+        rIntegral := rIntegral + rError * rDt;
+        IF rIntegral >  100.0 THEN rIntegral :=  100.0; END_IF   // anti-windup
+        IF rIntegral < -100.0 THEN rIntegral := -100.0; END_IF
+        rDeriv    := (rError - rErrPrev) / rDt;
+        rErrPrev  := rError;
+        rValveCmd := rKp*rError + rKi*rIntegral + rKd*rDeriv;
+        IF rValveCmd > 100.0 THEN rValveCmd := 100.0; END_IF
+        IF rValveCmd < 0.0   THEN rValveCmd := 0.0;   END_IF
+    ELSE
+        // --- on/off hysteresis ---
+        IF rLevel <= rSP_Low  THEN xFilling := TRUE;  END_IF
+        IF rLevel >= rSP_High THEN xFilling := FALSE; END_IF
+        IF xFilling THEN rValveCmd := 100.0; ELSE rValveCmd := 0.0; END_IF
+        xPump := NOT xFilling;
+    END_IF
+ELSIF xRunning AND NOT xAutoMode THEN
+    IF xManInlet THEN rValveCmd := 100.0; ELSE rValveCmd := 0.0; END_IF
+    xPump := xManPump;
 ELSE
-    xInletValve := FALSE; xPump := FALSE;
+    rValveCmd := 0.0; xPump := FALSE;
 END_IF
 
-// alarms
+// --- safety interlocks (re-enabled, run AFTER control) ---
 xHighAlarm := rLevel >= rSP_AlarmHigh;
 xLowCutout := rLevel <= rSp_AlarmLow;
-//IF xRunning AND xHighAlarm THEN xInletValve := FALSE; xPump := TRUE; END_IF
-//IF xRunning AND xLowCutout THEN xInletValve := TRUE;  xPump := FALSE; END_IF
+IF xRunning AND xHighAlarm THEN rValveCmd := 0.0;   END_IF   // overfill -> shut inlet
+IF xRunning AND xLowCutout THEN xPump := FALSE;     END_IF   // dry-run -> stop pump
 
 // physics simulation
-IF xInletValve = TRUE THEN rInflow := 2.0; ELSE rInflow := 0.0; END_IF
-IF xPump = TRUE THEN rOutflow := 1.5; ELSE rOutflow := 0.0; END_IF
-rLevel := (rLevel + rInflow) - rOutflow;
+rInflow := (rValveCmd / 100.0) * rInflowMax;
+IF xPidMode THEN
+    rOutflow := rDraw;                              // steady disturbance in PID mode
+ELSE
+    IF xPump THEN rOutflow := 1.5; ELSE rOutflow := 0.0; END_IF
+END_IF
+rLevel := rLevel + (rInflow - rOutflow) * rDt;
 
 IF rLevel > 100.0 THEN rLevel := 100.0; END_IF
-IF rLevel < 0.0 THEN rLevel := 0.0; END_IF
+IF rLevel < 0.0   THEN rLevel := 0.0;   END_IF
 
-xHighAlarmOk := NOT xHighAlarm; // for visualization
-xLowCutoutOk := NOT xLowCutout; // for visualization
-xValveClosed := NOT xInletValve; // for visualization
-xPumpStopped := NOT xPump; // for visualization
-IF xLowCutoutOK = TRUE AND xHighAlarmOk = TRUE THEN xAllOk := TRUE; ELSE xAllOk := FALSE; END_IF // for visualization
-IF xAutoMode = TRUE THEN xManualMode := FALSE; ELSE xManualMode := TRUE; END_IF // for visualization
+xInletValve := rValveCmd > 0.0;
+
+xHighAlarmOk := NOT xHighAlarm;
+xLowCutoutOk := NOT xLowCutout;
+xValveClosed := NOT xInletValve;
+xPumpStopped := NOT xPump;
+xPidModeOff := NOT xPidMode;
+IF xLowCutoutOK = TRUE AND xHighAlarmOk = TRUE THEN xAllOk := TRUE; ELSE xAllOk := FALSE; END_IF
+IF xAutoMode = TRUE THEN xManualMode := FALSE; ELSE xManualMode := TRUE; END_IF
