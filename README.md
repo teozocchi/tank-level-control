@@ -6,7 +6,7 @@ A small but complete industrial-control project: a simulated water tank kept at 
 
 ![HMI — normal operation](docs/hmi.png)
 -
-![HMI — high-level alarm](docs/hmi_alarm.png) <!-- level above AH: red banner + trend excursion -->
+![HMI — pid mode](docs/hmi_pid.png) <!-- level above AH: red banner + trend excursion -->
 
 ## What it does
 
