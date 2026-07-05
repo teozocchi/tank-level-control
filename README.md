@@ -13,6 +13,7 @@ A small but complete industrial-control project: a simulated water tank kept at 
 - **Start / Stop** — edge-detected run latch driven by momentary pushbuttons
 - **Auto / Manual modes** — hysteresis control in Auto, direct inlet/pump commands in Manual
 - **On-off (hysteresis) level control** — fills below the low setpoint, drains above the high setpoint, holds direction in between
+  - **PID controller mode** — a modulating inlet valve (0–100%) that holds an exact setpoint against a steady outflow
 - **Safety overrides** (act on the live signal, always win):
   - **High-level alarm** — closes the inlet and drains the tank
   - **Low-level dry-run cutout** — stops the pump to protect it
@@ -81,7 +82,6 @@ IF xRunning AND xLowCutout THEN xInletValve := TRUE;  xPump := FALSE; END_IF
 
 ## Next steps
 
-- PID control on a modulating valve
 - ESD (emergency shutdown) interlock
 - Alarm prioritisation / first-out annunciation
 - Port to Siemens TIA Portal (STEP 7 + WinCC)
