@@ -5,15 +5,15 @@ A small but complete industrial-control project: a simulated water tank kept at 
 > Built as my first automation project, ahead of starting **Automation Engineering at Politecnico di Milano**.
 
 ![HMI — normal operation](docs/hmi.png)
--
-![HMI — pid mode](docs/hmi_pid.png) <!-- level above AH: red banner + trend excursion -->
+
+![HMI — PID mode](docs/hmi_pid.png)
 
 ## What it does
 
 - **Start / Stop** — edge-detected run latch driven by momentary pushbuttons
 - **Auto / Manual modes** — hysteresis control in Auto, direct inlet/pump commands in Manual
 - **On-off (hysteresis) level control** — fills below the low setpoint, drains above the high setpoint, holds direction in between
-  - **PID controller mode** — a modulating inlet valve (0–100%) that holds an exact setpoint against a steady outflow
+- **PID control mode (v2)** — a modulating inlet valve (0–100%) holds an exact level setpoint against a steady outflow; switchable against on-off mode from the HMI
 - **Safety overrides** (act on the live signal, always win):
   - **High-level alarm** — closes the inlet and drains the tank
   - **Low-level dry-run cutout** — stops the pump to protect it
@@ -27,8 +27,11 @@ The logic runs every scan cycle:
 
 1. **Edge-detect Start/Stop** into a run latch, so a held button is a one-shot instead of re-firing every scan.
 2. **In Auto, latch a fill/drain direction.** Flip to *fill* at the low setpoint and *drain* at the high setpoint, then drive the actuators off that latch. This keeps the plant doing something through the dead band, so restarting mid-band resumes the last direction instead of freezing.
-3. **Apply safety overrides after control**, gated on the run state, using the *live* alarm condition; protective action follows reality instead of the acknowledged state.
-4. **Integrate the tank physics** from the valve/pump state.
+3. **In PID mode, modulate the inlet valve.** A PID loop drives the valve command (0–100%) toward the exact setpoint; the integral term removes the steady-state offset that plain proportional control would leave.
+4. **Apply safety overrides after control**, gated on the run state, using the *live* alarm condition; protective action follows reality instead of the acknowledged state.
+5. **Integrate the tank physics** from the valve/pump state.
+
+Core of the on-off path (v1):
 
 ```iecst
 // edge-detected start/stop latch
